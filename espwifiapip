@@ -1,0 +1,249 @@
+#include <Arduino.h>
+#ifdef ESP32
+  #include <WiFi.h>
+  #include <AsyncTCP.h>
+#else
+  #include <ESP8266WiFi.h>
+  #include <ESPAsyncTCP.h>
+#endif
+#include <ESPAsyncWebServer.h>
+
+
+#include <EEPROM.h>
+#define STRING_ADDRESS 0
+
+const char* apSSID = "gas";
+const char* apPassword = "12345678";
+
+AsyncWebServer server(80);
+const char* PARAM_INPUT_1 = "input1";
+const char* PARAM_INPUT_2 = "input2";
+const char* PARAM_INPUT_3 = "input3";
+const char* PARAM_INPUT_4 = "input4";
+
+const char index_html1[] PROGMEM = R"rawliteral(
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>ESP8266 Wi-Fi Client</title>
+</head>
+<body>
+  <h1>Connected to Wi-Fi</h1>
+  <p>This is the HTML page served when connected to an existing Wi-Fi network.</p>
+</body>
+</html>
+)rawliteral";
+
+// HTML web page to handle 3 input fields (input1, input2, input3)
+const char index_html[] PROGMEM = R"rawliteral(
+<!DOCTYPE HTML><html><head>
+  <title>ESP Input Form</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head><body>
+  <form action="/get">
+    wifi name: <input type="text" name="input1"> <br/>
+   
+  
+ 
+    wifi password: <input type="text" name="input2"> <br/>
+   
+ 
+    username: <input type="text" name="input3"> <br/>
+     password: <input type="text" name="input4"> <br/>
+    <input type="submit" value="Submit">
+  </form>
+</body></html>)rawliteral";
+
+void notFound(AsyncWebServerRequest *request) {
+  request->send(404, "text/plain", "Not found");
+}
+
+void setup() {
+  Serial.begin(115200);
+   EEPROM.begin(512); // Initialize the EEPROM library
+    Serial.println("reading EEPROM befor"); 
+
+  int EEPROMssid,WiFipass;
+  EEPROMssid=EEPROM.read(0);
+  WiFipass=EEPROM.read(1);
+  Serial.println(EEPROMssid);
+   Serial.println(WiFipass);
+  String abc;
+  int size=EEPROMssid+2;
+  for(int i=0;i<=EEPROMssid-1;i++)
+  {
+char bb=EEPROM.read(i+2);
+abc+=bb;
+  }
+       Serial.println(abc); 
+
+Serial.println("\nread pass");
+  String abc1;
+  for(int i=0;i<=size+2;i++)
+  {
+char bb1=EEPROM.read(i+size);
+abc1+=bb1;
+  }
+
+    Serial.println("wifi read from eeprom "+abc+"\n");
+    Serial.println("wifi pass read from eeprom "+abc1+"\n");
+String tempssid=abc;
+String temppass=abc1;
+Serial.println(temppass.c_str());
+Serial.println(tempssid.c_str());
+
+    
+String RR;
+char rr='y';
+int i=0;
+while(rr!='\0')
+{
+  rr=EEPROM.read(i);
+  i++;
+  RR+=rr;
+}
+Serial.println(RR);
+
+ const char* ssid ;
+ const char* password;
+bool boo=false;
+  // Start access point
+  WiFi.softAP(apSSID, apPassword);
+
+  Serial.print("Access Point SSID: ");
+  Serial.println(apSSID);
+  Serial.print("Access Point Password: ");
+  Serial.println(apPassword);
+  Serial.print("Access Point IP address: ");
+  Serial.println(WiFi.softAPIP());
+
+  // Connect to an existing Wi-Fi network  strlen(ssid) > 0 &&
+  if ( EEPROMssid!=0  ) {
+    Serial.println(tempssid.c_str());
+     Serial.println(temppass.c_str());
+    WiFi.mode(WIFI_AP_STA);
+    WiFi.begin(tempssid.c_str(), temppass.c_str());
+
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(500);
+      Serial.print(".");
+    }
+    Serial.println();
+
+    Serial.print("Connected to Wi-Fi. IP address: ");
+    Serial.println(WiFi.localIP());
+  }
+
+  // Initialize web server
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    if (WiFi.status() == WL_CONNECTED) {
+      request->send(200, "text/html", index_html1);
+    } else {
+      request->send(200, "text/html", index_html);
+    }
+  });
+
+  server.on("/get", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String inputMessage1;
+    String inputParam1;
+    String inputMessage2;
+    String inputParam2;
+    String inputMessage3;
+    String inputParam3;
+    String inputMessage4;
+    String inputParam4;
+
+    if (request->hasParam(PARAM_INPUT_1) && request->hasParam(PARAM_INPUT_2) &&
+        request->hasParam(PARAM_INPUT_3) && request->hasParam(PARAM_INPUT_4)) {
+      inputMessage1 = request->getParam(PARAM_INPUT_1)->value();
+      inputParam1 = PARAM_INPUT_1;
+      Serial.println("wifi use " + inputMessage1);
+
+      inputMessage2 = request->getParam(PARAM_INPUT_2)->value();
+      inputParam2 = PARAM_INPUT_2;
+      Serial.println("wifi pass " + inputMessage2);
+
+      inputMessage3 = request->getParam(PARAM_INPUT_3)->value();
+      inputParam3 = PARAM_INPUT_3;
+
+      inputMessage4 = request->getParam(PARAM_INPUT_4)->value();
+      inputParam4 = PARAM_INPUT_4;
+
+      String result = inputMessage1 + inputMessage2 + inputMessage3 + inputMessage4;
+      Serial.println(result);
+
+      request->send(200, "text/html", "HTTP GET request sent to your ESP on input field (" +
+                                         inputParam1 + ") with value: " + result +
+                                         "<br><a href=\"/\">Return to Home Page</a>");
+      Serial.print("EEPROM");
+      // Connect to existing Wi-Fi network
+          Serial.println( inputMessage1.length());
+        EEPROM.write(0, inputMessage1.length());
+          EEPROM.commit();
+           Serial.println( inputMessage2.length());
+        EEPROM.write(1, inputMessage2.length());
+          EEPROM.commit();
+            Serial.print("EEPROM read size");
+            int ssdiSize,passSize;
+            ssdiSize=EEPROM.read(0);
+             Serial.print(ssdiSize);
+             passSize=EEPROM.read(1);
+              Serial.print(passSize);
+
+
+              int size=ssdiSize+2;
+for(int i=0;i<=ssdiSize+1;i++){
+            EEPROM.write(i+2,inputMessage1[i]);
+
+          }
+            Serial.println("\n");
+
+for(int i=0;i<=size+2;i++){
+            EEPROM.write(i+size,inputMessage2[i]);
+
+          }
+            Serial.println("\n");
+
+
+
+Serial.println("read ssid");
+  String abc;
+  for(int i=0;i<=ssdiSize-1;i++)
+  {
+char bb=EEPROM.read(i+2);
+abc+=bb;
+  }
+       Serial.println(abc); 
+Serial.println("\nread pass");
+  String abc1;
+  for(int i=0;i<=size+2;i++)
+  {
+char bb1=EEPROM.read(i+size);
+abc1+=bb1;
+  }
+       Serial.println(abc1); 
+
+     
+int i=0;
+
+String RR;
+char rr='y';
+while(rr!='\0')
+{
+  rr=EEPROM.read(i);
+  i++;
+  RR+=rr;
+}
+Serial.println(RR);
+    } else {
+      request->send(400, "text/plain", "Missing input parameters");
+    }
+  });
+
+  server.onNotFound(notFound);
+  server.begin();
+}
+
+void loop() {
+  // Your code here
+}
